@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ambient Sense</string>
+    <string name="sensing_channel_name">Ambient sensing</string>
+    <string name="sensing_channel_desc">Live RF, acoustic and connectivity measurements</string>
+    <string name="sensing_notification_title">Ambient Sense is measuring</string>
+    <string name="sensing_notification_text">RF, acoustic and network probes running</string>
+    <string name="stop">Stop</string>
+</resources>

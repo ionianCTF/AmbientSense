@@ -1,0 +1,5 @@
+# Ambient Sense repository root — top-level build artefacts
+.android/
+.gradle/
+.sudo_as_admin_successful
+apk/
