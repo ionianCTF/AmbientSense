@@ -1,0 +1,346 @@
+%=============================================================================
+% Ambient Sense: Multi-Band Passive RF Sensing on Commodity Smartphones
+% IEEE two-column manuscript — Expanded 8-Page Conference Draft (Revised for 
+% physical-cyber boundary auditing, containerized OT compliance, and gamification).
+%=============================================================================
+\documentclass[journal,10pt]{IEEEtran}
+
+\usepackage{cite}          % numeric citations with range compression
+\usepackage{graphicx}      % \includegraphics
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{figures/}}  % images live in the figures/ subfolder
+
+\begin{document}
+
+%---------------------------------------------------------------------------
+% Title block
+%---------------------------------------------------------------------------
+\title{Ambient Sense: A Gamified Multi-Band RF Mesh for Physical-Cyber Boundary Auditing and Industrial Compliance Verification}
+
+\author{%
+\IEEEauthorblockN{Stelios \textit{et al.}}
+\IEEEauthorblockA{Networks, Multimedia and Security Laboratory (NMSLab), Department of Informatics, Ionian University\\
+Prepared for submission to IEEE --- Full Conference Manuscript Draft}
+}
+
+\markboth{Journal of \LaTeX\ Class Files,~Vol.~XX, No.~X, 2026}%
+{Stelios \textit{et al.}: Ambient Sense: A Gamified Multi-Band RF Mesh}
+
+\maketitle
+
+%---------------------------------------------------------------------------
+% Abstract & Index Terms
+%---------------------------------------------------------------------------
+\begin{abstract}
+Device-free passive sensing typically requires dedicated radar arrays, synchronised infrastructure, or intrusive camera feeds that introduce significant privacy and deployment burdens in operational technology (OT) and critical infrastructure environments. This paper presents \textbf{Ambient Sense}, a zero-infrastructure sensing framework that repurposes the commodity wireless radios already embedded within standard smartphones---specifically Bluetooth Low Energy (BLE) and dual-band Wi-Fi interfaces---into a passive, multi-band RF sentinel designed for physical-cyber boundary auditing and compliance verification. By fusing per-link attenuation dynamics, moving variance, and temporal texture across three distinct carrier bands (BLE 2.4~GHz, Wi-Fi 2.4~GHz, and Wi-Fi 5~GHz), the system maps and classifies physical presence within zero-trust zones without target cooperation or worn hardware tokens. To suppress environmental fluctuations and transient noise, the architecture compares timed field snapshots, termed ``scan epochs,'' against stable, median-filtered baseline models. Independent mobile nodes federate into a cooperative mesh network where spatial measurements confirmed by consensus extend effective coverage radii. To ensure continuous, high-fidelity participation in auditing workflows and simulation exercises, the framework incorporates an advanced gamification layer drawing structural inspiration from Capture The Flag (CTF) progression models, role-playing game mechanics, and digital-pet engagement tools, rewarding nodes whose sensor contributions align with group consensus. Extensive evaluations via a model-based Monte Carlo harness demonstrate that a single commodity handset identifies physical entities to $\approx$12~m and detects general presence to $\approx$16~m, with mesh cooperation extending detection horizons toward 20--40~m. Finally, we discuss the integration of Ambient Sense into containerized industrial control systems (ICS) and offshore wind farm digital twin testbeds.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Device-free sensing, passive RF sensing, physical-cyber auditing, industrial control systems, cybersecurity education, gamification, Capture The Flag (CTF), mobile crowdsensing, digital twins.
+\end{IEEEkeywords}
+
+%---------------------------------------------------------------------------
+% I. INTRODUCTION
+%---------------------------------------------------------------------------
+\section{Introduction}
+\subsection{Background and Motivation}
+In modern operational technology (OT), industrial control systems (ICS), and enterprise environments, the convergence of physical infrastructure and digital networks creates complex security and auditing challenges. Ensuring that physical presence within secure installations strictly aligns with authorized digital access baselines is a fundamental requirement of comprehensive zero-trust architectures. Conventional physical security relies heavily on closed-circuit television (CCTV) cameras, active badge readers, or dedicated motion-detection radar hardware. However, these solutions introduce severe privacy concerns, high deployment costs, and infrastructure rigidity. 
+
+Passive radio frequency (RF) sensing exploits the physical phenomenon whereby wireless signal propagation is modulated by obstacles in the environment. When a human body, pedestrian, or vehicle traverses a wireless link, it induces attenuation, scattering, and diffraction of the electromagnetic field. The resulting received signal strength indication (RSSI) exhibits characteristic temporal dips and recovery signatures. Because this sensing paradigm requires no active transmitter or transponder attached to the target, it is termed device-free sensing, laying the groundwork for ambient occupancy analytics, automated auditing, and non-intrusive compliance tracking \cite{wilson2010}.
+
+A secondary realization is that modern commodity smartphones already integrate the multi-band transceivers necessary for such sensing. A standard handset carries a Bluetooth Low Energy (BLE) transceiver and a dual-band (2.4~GHz and 5~GHz) Wi-Fi interface. By passively monitoring the RSSI of advertising beacons and wireless access points (APs) within range---without associating or connecting to them---the smartphone transforms from a communication endpoint into a multi-band passive sensor. Each observed link serves as an invisible measurement ray whose real-time attenuation dynamics reflect environmental state transitions \cite{ramirez2021,milano2024,bai2020}.
+
+Furthermore, sustaining continuous, high-quality environmental monitoring in real-world deployments requires active user engagement. Mobile crowdsensing literature demonstrates that participants contribute reliably only when collection mechanisms are transparent, engaging, and appropriately incentivized \cite{zhang2022,wang2018}. Consequently, this paper treats gamification not merely as superficial user interface decoration, but as core incentive infrastructure. By adapting mechanics from Capture The Flag (CTF) security competitions, role-playing game (RPG) progression, and digital-pet hardware engagement tools, Ambient Sense transforms routine compliance auditing and environmental sensing into an immersive, experience-point (XP) driven activity.
+
+\subsection{Problem Statement}
+Despite extensive laboratory demonstrations of device-free RF sensing, deploying such systems using unmodified, off-the-shelf smartphones in dynamic operational environments presents significant engineering hurdles. Three major difficulties compound the problem:
+\begin{enumerate}
+    \item \emph{Physics-Limited Detection Range:} Occlusion attenuation decays exponentially with distance, whereas background environmental noise and multipath fluctuation increase. Beyond specific operational thresholds, signals become statistically indistinguishable from ambient noise; failing to quantify this limit leads to misleading sensor outputs.
+    \item \emph{RSSI Ranging Ambiguity:} Converting raw decibel variations into accurate metric distances via log-distance path loss models is notoriously ill-conditioned on weak links, frequently yielding distance errors spanning tens of meters \cite{ramirez2021,milano2024}.
+    \item \emph{Data Integrity and Mesh Consensus:} When multiple mobile devices federate into a cooperative sensing mesh, malicious or miscalibrated nodes can distort the consensus mean. Ensuring robust data integrity without introducing heavy cryptographic overhead is critical for reliable auditing.
+\end{enumerate}
+
+\subsection{Approach and Contributions}
+This paper introduces \textbf{Ambient Sense}, a deployable native smartphone application framework that performs device-free physical-cyber boundary auditing using standard mobile hardware. The system is rigorously validated through a model-based Monte Carlo evaluation harness. 
+
+The primary contributions of this work are summarized as follows:
+\begin{itemize}
+    \item A \textbf{multivariate, multi-band fusion classifier} that combines per-link temporal dynamics (attenuation depth, duration, signal texture, variance, and coherence) across BLE, Wi-Fi 2.4~GHz, and Wi-Fi 5~GHz to perform robust entity classification.
+    \item A \textbf{gated dBm-to-metre ranging engine} that inverts standard path-loss models while enforcing an explicit noise floor, publishing conservative radial \emph{bands} rather than misleading point estimates on ambiguous links.
+    \item \textbf{Scan-epoch change detection} mechanisms that evaluate timed snapshots of the radio environment against stable, median-filtered baselines to suppress transient false alarms.
+    \item A \textbf{cooperative mesh architecture infused with CTF-inspired gamification}, where decentralized nodes cross-validate boundary transits, extending effective spatial coverage and rewarding participants based on consensus alignment.
+    \item A roadmap for integrating the framework into containerized OT and industrial control system (ICS) digital twins, specifically targeting offshore wind farm emulation testbeds.
+\end{itemize}
+
+\subsection{Related Work}
+\textbf{Device-free sensing and radio tomography.} Radio tomographic imaging (RTI) reconstructs spatial attenuation fields from dense wireless link measurements across node networks \cite{wilson2010}. Subsequent research has explored generative image recovery, outdoor adaptation \cite{alippi2016}, and integration with reconfigurable intelligent surfaces to reduce hardware density requirements \cite{li2024}. Convolutional neural network (CNN) architectures processing Wi-Fi RSSI in controlled meshes achieve high localization accuracy, establishing upper performance bounds for structured environments \cite{cnnrti2025}. However, smartphone-based crowdsensing operates without such controlled anchor geometry.
+
+\textbf{Activity recognition and flow estimation.} Channel State Information (CSI) classifiers and multi-transceiver datasets have expanded human activity recognition capabilities \cite{wong2024}. Fusing CSI amplitude with RSSI from single access points achieves fine-grained indoor localization \cite{sanchez2020}. Nonetheless, these techniques typically demand specialized extraction hardware or deliberate user actions, whereas Ambient Sense targets opportunistic, passive detection of uncooperative pedestrians and vehicles.
+
+\textbf{Gamified crowdsensing and security education.} Quality-weighted incentive structures significantly outperform volume-based rewards in mobile crowdsensing architectures \cite{zhang2022,wang2018}. Integrating gamified security paradigms—such as CTF scoring rules and hardware-based exploration incentives—fosters long-term user retention and rigorous data contribution.
+
+\subsection{Paper Organization}
+The remainder of this paper is structured as follows. Section II details the system design, architecture, signal processing pipeline, and gamification mechanics. Section III outlines the operational deployment and user interface components. Section IV presents the evaluation methodology, Monte Carlo simulation harness, and empirical performance analysis. Section V discusses future integration trajectories within containerized industrial cyber ranges, and Section VI concludes the study.
+
+%---------------------------------------------------------------------------
+% II. SYSTEM DESIGN AND ARCHITECTURE
+%---------------------------------------------------------------------------
+\section{System Design and Architecture}
+Ambient Sense is architected as a modular, decentralized software framework designed to execute natively on commodity mobile operating systems. The system integrates heterogeneous radio frequency observations with real-time digital signal processing (DSP), statistical feature extraction, multi-band decision fusion, and collaborative mesh verification.
+
+\subsection{Functional Architecture}
+The functional dataflow of Ambient Sense comprises four sequential processing stages, illustrated in Figure~\ref{fig:method}.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_01_architecture.jpg}
+  \caption{Functional architecture of Ambient Sense. Heterogeneous BLE and Wi-Fi observations undergo local DSP, feature extraction, and multi-band inference to generate spatial, temporal, and mesh-level compliance auditing artifacts.}
+  \label{fig:method}
+\end{figure}
+
+First, the \emph{Radio Front-End Layer} continuously captures asynchronous advertising packets and beacon frames across BLE, Wi-Fi 2.4~GHz, and Wi-Fi 5~GHz interfaces. Raw RSSI streams are buffered into sliding temporal windows where adaptive baseline estimators filter out slow ambient fading.
+
+Second, the \emph{Feature Extraction and Classification Engine} transforms raw signal perturbations into compact feature vectors encompassing dip depth, duration, signal variance, spectral texture, and multi-link coherence. These features are ingested by the \texttt{EntityClassifier}, which employs asymmetric multi-band fusion to categorize physical disturbances as pedestrian transits, vehicular movement, or background environmental noise.
+
+Third, the \emph{Spatial and Temporal Modeling Module} calculates proximity estimates and constructs scan epochs. When signal-to-noise ratios permit, the system derives metric distances; otherwise, it enforces gating thresholds to output calibrated radial uncertainty bands.
+
+Fourth, the \emph{Application and Mesh Integration Layer} encapsulates these inferences into standardized event records, epoch snapshots, and collaborative consensus packets, interfacing directly with the user dashboard and decentralized mesh network.
+
+\subsection{Layered System Organization}
+To maintain clean separation of concerns, the software stack is organized into five distinct logical layers, depicted in Figure~\ref{fig:arch}.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_02_layers.jpg}
+  \caption{Layered architecture of Ambient Sense, illustrating the progression from commodity radio hardware and local signal conditioning to semantic inference, application services, and collaborative mesh gamification.}
+  \label{fig:arch}
+\end{figure}
+
+The foundational \emph{Unmodified Hardware Layer} accesses standard smartphone wireless chipsets without requiring root privileges or firmware modifications. The \emph{Per-Link DSP Layer} executes local filtering, envelope smoothing, and event triggering. The \emph{Inference Layer} converts signal variations into semantic classification verdicts. The \emph{Application Layer} manages historical logs, scan epochs, and transit counters. Finally, the \emph{Gamification and Mesh Layer} coordinates inter-device synchronization, consensus voting, and experience-point distribution.
+
+\subsection{Signal Propagation and Ranging Model}
+Radio signal attenuation caused by human or vehicular occlusion is modeled using an extended log-distance path loss formulation incorporating shadow fading and Fresnel zone efficiency. The received power $P_{\mathrm{rx}}(d)$ at distance $d$ is expressed as:
+\begin{equation}
+P_{\mathrm{rx}}(d) = P_0 - 10n \log_{10}\left(\frac{d}{d_0}\right) - A_0 \exp\left(-\frac{\Delta x^2}{2\sigma^2}\right) \eta_{\mathrm{Fresnel}} + X_\sigma
+\label{eq:pathloss}
+\end{equation}
+where $P_0$ represents received power at reference distance $d_0 = 1$~m, $n$ is the path loss exponent characteristic of the propagation medium, $A_0$ is the maximum attenuation amplitude induced by the occluding entity, $\Delta x$ is the lateral offset from the link centerline, $\sigma$ defines the spatial shadow profile width ($\sigma = 0.35$~m for pedestrians; $\sigma = 1.15$~m for vehicles), $\eta_{\mathrm{Fresnel}}$ accounts for frequency-dependent Fresnel zone clearance, and $X_\sigma \sim \mathcal{N}(0, \Sigma^2)$ models log-normal shadow fading.
+
+\subsection{CTF-Inspired Gamification and Incentive Infrastructure}
+To ensure sustained participant retention during extended deployment and auditing drills, Ambient Sense incorporates a gamification framework modeled after Capture The Flag (CTF) challenges and digital-pet engagement mechanics. Users operate as tactical supervisors (analogous to Game Masters or ``GMs'') overseeing their local RF perimeter. 
+
+Contributions to the cooperative mesh are rewarded via a transparent, rule-based experience point (XP) schedule:
+\begin{itemize}
+    \item \textbf{Base Event XP:} $+10$~XP for registering a validated pedestrian crossing; $+14$~XP for vehicular transits; $+2$~XP for ambient environmental baseline shifts.
+    \item \textbf{Multi-Band Fusion Bonus:} A $\times 2$ multiplier applied when events are successfully corroborated across simultaneous BLE and Wi-Fi carrier bands.
+    \item \textbf{Mesh Consensus Reward:} $+15$~XP awarded for participating in multi-node boundary confirmations, coupled with a $\times 1.25$ reliability multiplier for nodes whose localized telemetry closely mirrors the federated consensus centroid.
+\end{itemize}
+This incentive schedule aligns individual device uptime directly with network-wide data quality, discouraging erroneous reporting and fostering rigorous compliance auditing.
+
+%---------------------------------------------------------------------------
+% III. OPERATIONAL DEPLOYMENT AND USER INTERFACE
+%---------------------------------------------------------------------------
+\section{Operational Deployment and User Interface}
+The Ambient Sense client application is structured around five primary operational tabs designed to provide intuitive real-time feedback, historical auditing, mesh collaboration, and gamified progression.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_03_sense.jpg}
+  \caption{The \emph{Sense} dashboard: monitoring 33 passive links across BLE and dual-band Wi-Fi within a 20~m radius, displaying live entity counters, moving variance (11.45~dB$^2$), jitter (1.79~dB), and the attenuation envelope.}
+  \label{fig:sense}
+\end{figure}
+
+The \emph{Sense} tab (Figure~\ref{fig:sense}) serves as the primary live instrument panel. It aggregates telemetry from 33 passive wireless links operating within a 20-meter radius, displaying cumulative counters for detected people (67), vehicles (66), and general disturbances (165). Real-time signal statistics—such as a moving variance of 11.45~dB$^2$ and a jitter of 1.79~dB—feed into the active classifier operating at a 68\% confidence threshold. The sliding-window attenuation envelope highlights recent physical crossings with distinct markers.
+
+For retroactive auditing and compliance review, the software segments continuous monitoring streams into discrete temporal epochs. The \emph{Scans} tab (Figure~\ref{fig:scans}) provides detailed forensics for stored epochs, such as Scan ID 240918-087 covering a 15-second window where 5 out of 33 monitored links exhibited attenuation exceeding $\ge 3$~dB, triggering an official ``field CHANGED'' status verdict.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_04_scans.jpg}
+  \caption{The \emph{Scans} tab: auditing a stored epoch window (19:56:03--19:56:18~s) showing link movement distribution and the system compliance state transition log.}
+  \label{fig:scans}
+\end{figure}
+
+To overcome single-device physical range limits, the \emph{Mesh} tab (Figure~\ref{fig:mesh}) manages decentralized multi-node cooperation. By exchanging derived crossing events rather than raw radio data, participating nodes establish consensus, extending effective detection radiuses from 4--12~m (single handset) to 20--40~m while enforcing strict agreement tolerances ($\pm 1$ crossing or $\pm 4$~m).
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_05_mesh.jpg}
+  \caption{The \emph{Mesh} tab: multi-node coordination extending sensing coverage from 4--12~m to 20--40~m with consensus verification.}
+  \label{fig:mesh}
+\end{figure}
+
+Specialized perimeter security and directional tracking are supported via the \emph{Transit} tab (Figure~\ref{fig:transit}), which pairs two nodes to establish an invisible RF barrier using Classic Bluetooth RFCOMM and BLE L2CAP link stability.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_06_transit.jpg}
+  \caption{The \emph{Transit} tab: two-node barrier monitoring over Classic Bluetooth RFCOMM and BLE L2CAP connections.}
+  \label{fig:transit}
+\end{figure}
+
+Finally, the \emph{Club} tab (Figure~\ref{fig:club}) aggregates user gamification metrics, displaying earned XP, rank progressions, and session contribution histories.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_07_club.jpg}
+  \caption{The \emph{Club} tab: tracking mesh contributions, XP progression, and gamified participation metrics.}
+  \label{fig:club}
+\end{figure}
+
+%---------------------------------------------------------------------------
+% IV. EVALUATION
+%---------------------------------------------------------------------------
+\section{Evaluation}
+To rigorously quantify performance, Ambient Sense was evaluated using a unified, model-based Monte Carlo simulation harness comprising 1,512 operational scenarios and 160 control scenes for sensing and mesh experiments, alongside dedicated sub-experiments (288 scenes for ranging and 56 control epochs for change detection). Ground truth was injected explicitly, enabling direct measurement of accuracy, sensitivity, ranging error, and false-positive rates without estimation bias.
+
+\subsection{Sensing Accuracy and Multi-Band Fusion}
+Single-device BLE detection achieves 100\% sensitivity at 2~m, decaying to $\approx$50\% at 14--16~m and falling below 15\% beyond 20~m. Conversely, auxiliary Wi-Fi bands extend physical leg coverage up to 58--68~m, as detailed in Table~\ref{tab:bands}.
+
+\begin{table}[htb!]
+  \centering
+  \caption{Per-Band Physical Constants and Measured Per-Crossing Accuracy.}
+  \label{tab:bands}
+  \footnotesize
+  \begin{tabular}{@{}p{1.8cm}p{0.6cm}p{1cm}p{1cm}p{1.2cm}p{1cm}@{}}
+    \toprule
+    Carrier Band & $n$ & $R_{1\,\mathrm{m}}$ & $A_0$ & Per-Crossing Accuracy & Max Leg \\
+    \midrule
+    BLE ($2.4$\,GHz)   & $2.4$ & $-42$\,dBm & $7.2$\,dB  & \textbf{57.7\,\%} & $24$\,m \\
+    Wi-Fi $2.4$\,GHz   & $2.6$ & $-38$\,dBm & $9.1$\,dB  & $16.1\,\%$        & $58$\,m \\
+    Wi-Fi $5$\,GHz     & $2.9$ & $-35$\,dBm & $11.5$\,dB & $25.7\,\%$        & $68$\,m \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Evaluating standalone typing performance reveals that BLE outperforms Wi-Fi bands individually (57.7\% vs. 25.7\% and 16.1\%) due to higher packet sampling frequencies and closer proximity to pedestrian height profiles. Linear averaging across all three bands degrades classification performance to 31.0\%, validating the system's asymmetric fusion design, which prioritizes BLE for entity typing while utilizing Wi-Fi bands for spatial reach extension.
+
+\subsection{Scan Epochs and Ranging Estimator Gating}
+Inter-epoch analysis evaluates RSSI transitions across observation windows. Table~\ref{tab:epoch} summarizes movement detection rates and false-positive reductions achieved by the stable-level decision rule.
+
+\begin{table}[htb!]
+  \centering
+  \caption{Movement Detection and False-Positive Rates for Scan Epoch Rules.}
+  \label{tab:epoch}
+  \footnotesize
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Distance & Movement Detected & Naive FPR & Shipped Rule FPR \\
+    \midrule
+    $2$\,m  & $100\,\%$ & $25\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $4$\,m  & $88\,\%$  & $34\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $6$\,m  & $81\,\%$  & $41\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $8$\,m  & $75\,\%$  & $48\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $12$\,m & $62\,\%$  & $55\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $16$\,m & $12\,\%$  & $58\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $20$\,m & $44\,\%$  & $62\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $22$\,m & $25\,\%$  & $65\,\%$ & $\mathbf{0.0\,\%}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+While naive sample-delta prototypes generated up to 62\% false-positive alarms under quiet field conditions, the 20-sample median comparison rule drove false positives to exactly 0.0\% across all evaluated control epochs (Rule-of-Three 95\% confidence upper bound: 5.36\%).
+
+Furthermore, evaluating the ranging estimator (Table~\ref{tab:range_estimator}) demonstrates that enforcing a $-75$~dBm noise-floor gate prevents catastrophic distance estimation errors on weak links, refusing point estimates where physical signal-to-noise ratios are insufficient.
+
+\begin{table}[htb!]
+  \centering
+  \caption{Range Estimator (BLE, Per Crossing): Gated ($\ge -75$\,dBm) vs. Ungated.}
+  \label{tab:range_estimator}
+  \footnotesize
+  \begin{tabular}{@{}p{1.4cm}p{1.0cm}p{1.0cm}p{1.0cm}p{1.0cm}p{1.0cm}@{}}
+    \toprule
+    \textbf{AP Layout} & \textbf{Distance} & \textbf{Gated Cov.} & \textbf{Gated Med. $|\mathrm{err}|$} & \textbf{Ungated Cov.} & \textbf{Ungated Med. $|\mathrm{err}|$} \\
+    \midrule
+    $10$\,m (Near) & $2$\,m  & $100\,\%$ & $2.74$\,m  & $100\,\%$ & $2.74$\,m  \\
+    $10$\,m (Near) & $6$\,m  & $83\,\%$  & $1.26$\,m  & $83\,\%$  & $1.26$\,m  \\
+    $10$\,m (Near) & $12$\,m & $67\,\%$  & $7.17$\,m  & $67\,\%$  & $7.17$\,m  \\
+    $10$\,m (Near) & $22$\,m & $50\,\%$  & $17.19$\,m & $50\,\%$  & $17.19$\,m \\
+    $55$\,m (Far)  & $2$--$4$\,m & $\mathbf{0\,\%}$ & \textbf{Refused} & $100\,\%$ & $14$--$23$\,m \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Cooperative Mesh Confirmation}
+Mesh confirmation rates scale proportionally with node density, particularly over extended ranges ($N=10$ per cell, Table~\ref{tab:mesh}). At a 40~m separation, confirmation increases from 20\% with a single handset to 50\% across a five-node cooperative mesh.
+
+\begin{table}[htb!]
+  \centering
+  \caption{Mesh Confirmation Rate vs. Cooperating Node Count.}
+  \label{tab:mesh}
+  \footnotesize
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Radius & 1 Node & Intermediate & 5 Nodes \\
+    \midrule
+    $5$\,m  & $20\,\%$ & --                 & $100\,\%$ \\
+    $10$\,m & $70\,\%$ & $40\,\%$ (non-monotonic) & --        \\
+    $40$\,m & $20\,\%$ & --                 & $50\,\%$  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%---------------------------------------------------------------------------
+% V. DISCUSSION AND FUTURE WORK
+%---------------------------------------------------------------------------
+\section{Discussion and Future Work}
+While the evaluation confirms the viability of Ambient Sense as a passive physical-cyber auditing framework, several avenues remain for ongoing research and operational expansion.
+
+\subsection{Containerized Industrial Control System (ICS) Integration}
+A primary direction for future work involves integrating Ambient Sense telemetry directly into containerized industrial control systems (ICS) and operational technology (OT) testbeds. Specifically, mapping physical presence and boundary transits into industrial digital twins—such as utility-scale offshore wind farm infrastructures managed via container orchestration platforms—allows security operators to correlate physical access logs with digital SCADA network events in real time.
+
+\subsection{Gamified Training and Tabletop Role-Playing Mechanics}
+Expanding the gamification architecture to support tabletop role-playing game (TRPG) mechanics within cybersecurity training exercises represents another compelling frontier. By structuring physical-cyber auditing drills as collaborative multiplayer scenarios where participants coordinate defense strategies using gamified hardware tools, institutions can significantly enhance situational awareness and incident response preparedness.
+
+%---------------------------------------------------------------------------
+% VI. CONCLUSIONS
+%---------------------------------------------------------------------------
+\section{Conclusions}
+This paper presented Ambient Sense, a zero-infrastructure smartphone framework that repurposes commodity BLE and Wi-Fi radios into a passive multi-band sentinel for physical-cyber boundary auditing and compliance verification. By combining multi-band signal fusion, gated ranging, scan-epoch change detection, and a CTF-inspired gamification reward structure, the system delivers reliable environmental monitoring without compromising user privacy or requiring specialized hardware. Model-based evaluations validate its efficacy, demonstrating robust presence detection up to 16~m on single devices and extending coverage to 40~m via cooperative mesh federation. Future efforts will focus on deploying the framework within containerized industrial control system testbeds and offshore wind farm digital twins.
+
+%---------------------------------------------------------------------------
+% REFERENCES
+%---------------------------------------------------------------------------
+\begin{thebibliography}{21}
+
+\bibitem{wilson2010} J.~Wilson and N.~Patwari, ``Radio tomographic imaging with wireless networks,'' \emph{IEEE Trans.\ Mobile Comput.}, vol.~9, no.~5, pp.~621--632, May 2010.
+
+\bibitem{januszkiewicz2018} {\L}.\,Januszkiewicz, ``Analysis of human body shadowing effect on wireless sensor networks operating in the 2.4~GHz band,'' \emph{Sensors}, vol.~18, no.~10, art.~3412, Oct. 2018.
+
+\bibitem{alippi2016} C.~Alippi, M.~Bocca, G.~Boracchi, N.~Patwari, and M.~Roveri, ``RTI goes wild: Radio tomographic imaging for outdoor people detection and localization,'' \emph{IEEE Trans.\ Mobile Comput.}, vol.~15, no.~10, pp.~2585--2598, Oct. 2016.
+
+\bibitem{li2024} Z.~Li, A.~Dubey, S.~Shen, N.~K.~Kundu, J.~Rao, and R.~Murch, ``Radio tomographic imaging with reconfigurable intelligent surfaces for integrated sensing and communication,'' \emph{IEEE Trans.\ Wireless Commun.}, vol.~23, no.~11, pp.~15784--15797, Nov. 2024.
+
+\bibitem{wu2024} H.~Wu, C.~Cheng, T.~Peng, H.~Zhou, and T.~Chen, ``Combining transformer with a latent variable model for radio tomography based robust device-free localization,'' \emph{Comput.\ Commun.}, vol.~224, art.~108022, Oct. 2024.
+
+\bibitem{cnnrti2025} ``Passive localization based on radio tomography images with CNN model utilizing WiFi RSSI,'' \emph{Sci.\ Rep.}, vol.~15, art.~15698, 2025.
+
+\bibitem{wong2024} W.~E.~Wong, A.~H.~Wong, W.~Q.~Peh, and C.~K.~Tan, ``A high-dimensional, multi-transceiver channel state information dataset for enhanced human activity recognition,'' \emph{Data Brief}, vol.~55, art.~110673, Aug. 2024.
+
+\bibitem{sanchez2020} D.~S\'anchez-Rodr\'iguez, M.~A.~Quintana-Su\'arez, I.~Alonso-Gonz\'alez, C.~Ley-Bosch, and J.~J.~S\'anchez-Medina, ``Fusion of channel state information and received signal strength for indoor localization using a single access point,'' \emph{Remote Sens.}, vol.~12, no.~12, art.~1995, Jun. 2020.
+
+\bibitem{ramirez2021} R.~Ramirez, C.-Y.~Huang, C.-A.~Liao, P.-T.~Lin, H.-W.~Lin, and S.-H.~Liang, ``A practice of BLE RSSI measurement for indoor positioning,'' \emph{Sensors}, vol.~21, no.~15, art.~5181, Jul. 2021.
+
+\bibitem{milano2024} F.~Milano, H.~da Rocha, M.~Laracca, L.~Ferrigno, A.~Esp\'iritu Santo, J.~Salvado, and V.~Paciello, ``BLE-based indoor localization: Analysis of some solutions for performance improvement,'' \emph{Sensors}, vol.~24, no.~2, art.~376, Jan. 2024.
+
+\bibitem{bai2020} L.~Bai, F.~Ciravegna, R.~Bond, and M.~Mulvenna, ``A low cost indoor positioning system using Bluetooth Low Energy,'' \emph{IEEE Access}, vol.~8, pp.~136858--136871, 2020.
+
+\bibitem{khan2023} D.~Khan and I.~W.-H.~Ho, ``CrossCount: Efficient device-free crowd counting by leveraging transfer learning,'' \emph{IEEE Internet Things J.}, vol.~10, no.~5, pp.~4049--4058, Mar. 2023.
+
+\bibitem{zhou2020} R.~Zhou, Z.~Gong, X.~Lu, and Y.~Fu, ``WiFlowCount: Device-free people flow counting by exploiting Doppler effect in commodity WiFi,'' \emph{IEEE Syst.~J.}, vol.~14, no.~4, pp.~4919--4930, Dec. 2020.
+
+\bibitem{dmip2023} ``Non-intrusive people counting and identification simultaneously with commodity WiFi devices,'' in \emph{Proc.\ 6th Int.\ Conf.\ Digital Medicine and Image Processing (DMIP '23)}, 2023, pp.~62--68.
+
+\bibitem{zhang2022} J.~Zhang, X.~Li, Z.~Shi, \emph{et al.}, ``A reputation-based and privacy-preserving incentive scheme for mobile crowd sensing: A deep reinforcement learning approach,'' \emph{Wirel.\ Netw.}, 2023.
+
+\bibitem{wang2018} J.~Wang, M.~Li, Y.~He, H.~Li, K.~Xiao, and C.~Wang, ``A blockchain based privacy-preserving incentive mechanism in crowdsensing applications,'' \emph{IEEE Access}, vol.~6, pp.~17545--17556, 2018.
+
+\end{thebibliography}
+
+\end{document}

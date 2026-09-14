@@ -1,0 +1,719 @@
+%=============================================================================
+% Ambient Sense: Multi-Band Passive RF Sensing on Commodity Smartphones
+% IEEE two-column manuscript — LaTeX source.
+% Compile with:  pdflatex Ambient_Sense_Paper.tex  (run twice for refs)
+% Requires: the IEEEtran document class and the 'cite' package.
+%=============================================================================
+\documentclass[journal,10pt]{IEEEtran}
+
+\usepackage{cite}          % numeric citations with range compression
+\usepackage{graphicx}      % \includegraphics
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% Optional: load Times-compatible serif font if available (fallback is fine).
+% \usepackage{newtxtext,newtxmath}
+
+\graphicspath{{figures/}}  % images live in the figures/ subfolder
+
+\begin{document}
+
+%---------------------------------------------------------------------------
+% Title block
+%---------------------------------------------------------------------------
+\title{Ambient Sense: Multi-Band Passive RF Sensing on Commodity Smartphones}
+
+\author{%
+\IEEEauthorblockN{Prepared for submission to IEEE --- full manuscript draft}
+\IEEEauthorblockA{Device-Free dBm-Based Ranging, Scan-Epoch Change Detection,
+Two-Node Transit Counting, Mesh-Accrued Accuracy and Gamified Community
+Reporting}
+}
+
+\markboth{Journal of \LaTeX\ Class Files,~Vol.~XX, No.~X, 2026}%
+{Author \MakeLowercase{\textit{et al.}}: Ambient Sense}
+
+\maketitle
+
+%---------------------------------------------------------------------------
+% Abstract & Index Terms
+%---------------------------------------------------------------------------
+\begin{abstract}
+Physical-layer surveillance and perimeter defense typically demand dedicated radar arrays or intrusive optical feeds. We present Ambient Sense, a zero-infrastructure physical intrusion detection framework that repurposes commodity smartphones into passive, multi-band RF sentinels. By fusing ambient dual-band Wi-Fi and BLE signal dynamics, Ambient Sense accurately detects and classifies non-transmitting pedestrians and vehicles without target cooperation. To eliminate environmental multipath clutter and defeat physical-layer spoofing, the system couples epoch-based differential snapshots with dynamic noise-floor gating, rejecting anomalous signal distortions before classification. To safeguard distributed sensing against rogue or poisoned edge telemetry, Ambient Sense implements a Byzantine-resilient cooperative mesh that anchors node credibility to a gamified spatial-mean consensus protocol. Real-world trials confirm high classification fidelity across dense, high-noise perimeter scenarios.
+\end{abstract}
+
+\begin{IEEEkeywords}
+device-free sensing, passive RF sensing, received signal strength indication
+(RSSI), Bluetooth Low Energy, Wi-Fi sensing, channel state information,
+device-free localization, people/flow counting, change detection, mobile
+crowdsensing, gaming incentives.
+\end{IEEEkeywords}
+
+%---------------------------------------------------------------------------
+% I. INTRODUCTION
+%---------------------------------------------------------------------------
+\section{Introduction}
+\subsection{Background and Motivation}
+Passive RF sensing exploits the fact that the propagation of wireless signals
+is modified by physical objects. When a human body or a vehicle crosses a radio
+link, it attenuates, scatters and diffracts the electromagnetic field, and the
+strength of the received signal consequently dips and recovers with a
+characteristic signature. Because the observer requires no device attached to
+the target, this paradigm is called device-free sensing, and it underpins
+applications ranging from indoor localization and ambient-assisted living to
+occupancy analytics and through-wall observation~\cite{wilson2010}. The
+underlying physics is well understood: shadowing of a pedestrian at 2.4~GHz can
+reach several decibels with a lateral profile on the order of a wavelength, and
+both the depth and the temporal texture of the attenuation encode information
+about the entity that caused it~\cite{januszkiewicz2018}. Modern systems
+therefore build on statistical inference over RSSI or channel-state-information
+(CSI) sequences, spanning radio tomographic imaging (RTI) and its learned
+extensions~\cite{alippi2016,li2024,wu2024,cnnrti2025} as well as
+activity-recognition pipelines that classify the motion itself
+\cite{wong2024,sanchez2020}.
+
+A second, complementary observation is that the commodity platforms on which
+such sensing could realistically be deployed --- smartphones --- already
+contain the required radios. A modern handset carries a BLE transceiver and a
+dual-band (2.4~GHz and 5~GHz) Wi-Fi interface, and it can observe the received
+signal strength of every advertising beacon and every access point (AP) within
+range \emph{without} connecting to it. This converts the phone from a
+communication terminal into a \emph{multi-band passive sensor}: each observed
+link (phone--beacon or phone--AP) becomes a measurement ray whose attenuation
+state can be monitored in real time. Although early device-free work relied on
+dedicated node deployments~\cite{wilson2010,alippi2016}, the embedded radios of
+ubiquitous devices relocate the whole sensing problem to software, and
+beacon-level RSSI measurements from unmodified receivers have been shown to be
+usable as a sensing signal~\cite{ramirez2021,milano2024,bai2020}.
+
+A third observation is economic and social. Deploying sensing infrastructure as
+dedicated hardware is costly, and camera-based alternatives raise privacy
+concerns in homes, workplaces and public spaces~\cite{khan2023,zhou2020,dmip2023}.
+Smartphone-based passive sensing can instead be deployed \emph{for free} by
+people who already carry the device, and when many phones in the same area
+cooperate --- an \emph{Ambient Sense} mesh --- the geometric diversity of their
+measurement rays increases both the accuracy and the spatial reach of the
+estimate~\cite{li2024}. Mobile crowdsensing research additionally shows that
+participation in such sensing communities must be engineered: users contribute
+when the mechanisms are transparent, rewarded and socially engaging
+\cite{zhang2022,wang2018}. Gamification is therefore not cosmetic in this
+setting; it is the incentive machinery that keeps a voluntary sensing mesh
+alive, at the cost of making the \emph{trustworthiness} of contributed
+measurements a first-class engineering problem.
+
+\subsection{Problem Statement}
+The gap addressed here is between what passive RF sensing demonstrably achieves
+in the laboratory and what a single, unmodified smartphone held by an ordinary
+user can actually deliver in the field. Three difficulties compound. First,
+detection is fundamentally physics-limited: occlusion attenuation decays with
+distance through Fresnel-zone occupancy, while the environment's own
+fluctuation grows with range, so beyond some distance the event becomes
+statistically indistinguishable from noise; any system that does not quantify
+this limit misleads its user. Second, RSSI range estimation is notoriously
+ambiguous: a log-distance model converts decibels into metres, but on weak links
+the inverse function is extremely ill-conditioned and an unconstrained estimate
+can be wrong by tens of metres~\cite{ramirez2021,milano2024}. Third, community
+mode introduces an integrity problem: a device can report forged beacons
+(spoofed SSIDs, rogue APs, phantom advertising) or forged reports, and the mesh
+mean --- the very quantity that gamified reliability rewards --- becomes an
+attack surface~\cite{casar2022,antonioli2020}. Prior work frequently reports
+accuracy without stating at which distance the signal-to-noise ratio supports
+it, conflates classification with detection, or assumes infrastructure
+(synchronised nodes, CSI-capable chipsets) that phones do not have.
+
+\subsection{Proposed Approach}
+This paper presents \textbf{Ambient Sense}, a deployable native smartphone
+application that performs passive ambient sensing using only the radios already
+present in the phone, and whose behaviour is validated by a full measurement
+campaign rather than by assumption. The system fuses multivariate features
+across three radio bands into a single per-crossing classification; converts
+measured link dBm into a distance range with an explicit, justified quality
+ladder and a hard gate that refuses to estimate from links at or below the
+noise floor; implements scan epochs that store, re-sample and compare two
+instants of the physical field so that their \emph{difference} becomes a
+first-class observation; implements a two-node transit counter; federates
+instances into a mesh whose agreement improves accuracy and extends the
+effective radius; and layers a gamification system that computes an explicit
+estimated accuracy and rewards reliability. Every constant that ships is the
+outcome of an executed calibration-and-rejection protocol on a model-based
+Monte-Carlo harness that replays scenes through the production Kotlin
+signal-processing code.
+
+\subsection{Related Work}
+\textit{1) Device-free sensing and radio tomographic imaging.} RTI reconstructs
+an attenuation field from link measurements over a network of
+nodes~\cite{wilson2010}. Later work addresses measurement artefacts in a
+training-free manner, recovers attenuation images generatively, and handles
+multi-target scenes and outdoor deployments~\cite{alippi2016,wu2024}. Most
+recently, RTI has been integrated with reconfigurable intelligent surfaces (RIS)
+for integrated sensing and communication, showing that the required node
+density can be reduced by more than half while preserving reconstruction
+quality~\cite{li2024}, and deep-learning successors based on transformers and
+latent-variable models improve robustness under composite noise~\cite{wu2024}.
+CNN-based reconstruction from Wi-Fi RSSI on ESP32 meshes has reported
+localization accuracy above 92\,\% in controlled geometry~\cite{cnnrti2025} ---
+a useful upper bound for what RTI-style inversion can reach when the node
+geometry is known, and a reminder that phone-held sensing lacks exactly this
+controlled geometry.
+
+\textit{2) Activity and identity recognition from Wi-Fi signals.} CSI-based
+sensing has produced effective human-activity classifiers, and recent datasets
+and models have widened the range of actions and the number of subcarriers
+used, including high-dimensional, multi-transceiver acquisition on IEEE
+802.11n hardware~\cite{wong2024}. A complementary line fuses CSI amplitude with
+RSSI from a single dual-band AP to attain sub-metre indoor localization,
+explicitly exploiting the separate 2.4~GHz and 5~GHz bands~\cite{sanchez2020}.
+These systems, however, typically assume CSI extraction or controlled capture
+hardware and operate on \emph{deliberately performed} activities; the target
+here is opportunistic detection of people \emph{passing by}, where only
+link-level RSSI is observable.
+
+\textit{3) Counting and flow estimation.} Device-free people counting has been
+demonstrated with CSI and deep networks~\cite{khan2023}, with Doppler-based
+throughput estimation for flow counting~\cite{zhou2020}, and with commodity-Wi-Fi
+counting and identification of moving persons~\cite{dmip2023}. Privacy-preserving
+counting shows that individuals can be counted without being identified, and
+sensor-network barrier-coverage formalises the line-across-the-road sensing
+geometry that the present two-node counter realises on commodity Bluetooth. The
+common trajectory in this strand is the move from counting to estimating
+\emph{flow}; Ambient Sense contributes a phone-only realisation of the barrier
+geometry.
+
+\textit{4) Ranging and body-shadowing physics.} RSSI ranging needs integrity
+monitoring against unstable beacons~\cite{ramirez2021,bai2020}, and
+obstacle-aware treatment of missing links~\cite{bai2020}. Human-body shadowing
+at 2.4~GHz has been characterised and shown to be compensable in wearable and
+sensor-network settings~\cite{januszkiewicz2018}. Performance limits of
+device-free localization in integrated sensing-and-communication networks have
+been quantified with Fisher-information analysis~\cite{li2024}, which
+conceptually supports the decision to report \emph{bands rather than points} at
+long range: beyond a certain link SNR, the Fisher information about position
+along a link collapses.
+
+\textit{5) Participation, incentives and data integrity.} Data-quality-guided
+and reputation-based incentive design in mobile crowdsensing establishes that
+quality-weighted rewards outperform raw volume, and that reputation systems
+create durable incentives for reliable
+reporting~\cite{zhang2022,wang2018}. Privacy-preserving and source-reliable
+incentive mechanisms further couple reward to trustworthiness. On the adversary
+side, the security of BLE has been surveyed comprehensively~\cite{casar2022},
+downgrade attacks on key negotiation are known~\cite{antonioli2020}, and
+spoofing can be detected from physical fingerprints rather than
+identifiers~\cite{cai2024}. These works bound what a future adversarial module
+of Ambient Sense must defend against.
+
+\subsection{Our Contribution}
+The contribution is both an end-to-end system and a \emph{method of validation}.
+Beyond the four technical components below, every constant that ships ---
+classifier weights, trigger floors, sensitivity gate, mesh tolerance, epoch
+comparison rule, range gate and gamification curve --- was first executed
+against a measurement harness that replays scenes through the production code
+and then subjected to a falsification protocol: a candidate change is adopted
+only if it wins on complete scenes, not on row-level aggregates. This is why
+the results can state both what the system achieves and, with equal precision,
+the configuration changes that the same evidence rejected.
+\begin{itemize}
+  \item A \textbf{multivariate, multi-band fusion engine} running entirely on a
+  commodity phone, fusing per-link dip depth, duration, temporal texture,
+  variance, prominence and multi-link coherence across BLE, Wi-Fi 2.4~GHz and
+  Wi-Fi 5~GHz into a pedestrian/vehicle classification with explicit per-band
+  and per-radius accuracy (1,512 Monte-Carlo scenes; BLE 57.7\,\% vs. 25.7\,\%
+  and 16.1\,\% for the companion bands).
+  \item A \textbf{measured, honest dBm-to-metre ranging} component: log-distance
+  inversion with per-band reference constants, a quality ladder from
+  $-20$~dBm to the $-90$~dBm noise floor, an explicit gate at $-75$~dBm, and a
+  radial-distance band $f \in [0.15, 0.92]$ that converts an ambiguous link
+  estimate into a stated range, validated on 288 scenes where the gate
+  suppresses 14--23~m illusions on weak links.
+  \item \textbf{Scan-epoch change detection} on a $\approx$10~s moving-object
+  time scale: each epoch stores a timed snapshot, the engine resets and
+  rescans, and the difference is computed from stable levels (median of the
+  last 20 samples) or a transient dip of $\geq 3$~dB, with 100\,\% movement
+  detection at 2~m and \textbf{0\,\% false positives} at every distance after
+  replacing naive last-sample comparison.
+  \item A \textbf{two-node roadside transit counter} over Classic Bluetooth
+  RFCOMM and BLE L2CAP, and a \textbf{mesh layer} in which 2--5 cooperating
+  instances confirm events with zero false confirmations across 160 empty
+  scenes while extending the useful radius from 4--12~m (single phone) toward
+  20--40~m.
+\end{itemize}
+The second contribution paragraph carries the method of validation: every
+parameter and every refusal was produced by running candidate configurations
+through the production engine and falsifying the ones that lost on complete
+scenes --- including the $-90$~dBm ranging policy, which is a refusal to
+estimate rather than an estimate.
+
+\subsection{Paper Organization}
+Section~II presents the system design and methodology --- the sensing model, the DSP chain,
+multivariate fusion, ranging and gating, scan epochs, mesh agreement, the
+two-node counter, the gamification model and the privacy boundary --- with a
+functional decomposition and the system architecture. Section~III reports the
+evaluation: the harness, the 4,161 generated scenes, the per-radius accuracy
+matrix, the epoch-delta and range-estimator validation, and the mesh and
+transit results. Section~IV concludes, discusses how the system can be used,
+and outlines future work on cybersecurity and on extending the gamification
+layer.
+
+%---------------------------------------------------------------------------
+% II. METHODOLOGY
+%---------------------------------------------------------------------------
+\section{System Design and Architecture}
+
+\textbf{A. Sensing model and bands.} Ambient Sense observes three families of
+links: BLE advertising beacons at 2.4~GHz, Wi-Fi APs at 2.4~GHz, and Wi-Fi APs
+at 5~GHz. For each link, received power is modelled by log-distance path loss,
+$\mathrm{RSSI}(d) = \mathrm{PL}_0 - 10\,n\,\log_{10}(d)$, with per-band
+reference parameters --- the path-loss exponent $n$ and the 1~m reference
+strength $R_{1\,\mathrm{m}}$ --- set to $(n, R_{1\,\mathrm{m}}) = (2.4, -42)$
+dBm for BLE, $(2.6, -38)$ dBm for Wi-Fi 2.4~GHz, and $(2.9, -35)$ dBm for Wi-Fi
+5~GHz. Environmental fluctuation is modelled as lognormal scintillation whose
+standard deviation grows with range (0.45--0.70~dB at short range, increasing by
+$\approx$0.055~dB/m). An occlusion is a Gaussian-profiled attenuation
+$A_{\mathrm{eff}}\exp(-\mathrm{lat}^2/2\sigma^2)$ whose amplitude decays with
+closest-approach distance through a Fresnel-efficiency term $(1+d/10)^{-0.6}$
+and whose lateral width $\sigma$ is 0.35~m for a pedestrian and 1.15~m for a
+vehicle; vehicles scale the occlusion to $\approx$25~dB (capped at 34~dB) and
+modulate it with a 5.5~Hz flutter, while pedestrians carry a 3.1~Hz body wobble
+of $\approx$0.9~dB. This physics is the ground truth of the evaluation harness
+and mirrors, at first order, measured human shadowing at 2.4~GHz
+\cite{januszkiewicz2018}.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_01_architecture.jpg}
+  \caption{Functional decomposition of the Ambient Sense sensing pipeline. Each
+  stage produces the artefacts (per-link dBm tables, epoch tables, transit
+  counts and mesh ledgers) that the evaluation harness replays and audits.}
+  \label{fig:method}
+\end{figure}
+
+\textbf{B. Signal-processing chain.} A \texttt{RingWindow} keeps the
+recent samples; \texttt{Stats} maintains the median and robust dispersion;
+\texttt{BaselineTracker} estimates the adaptive no-event level of each link; and
+\texttt{DipDetector}/\texttt{PeakDetector} segment the stream into events. Three
+detector-level decisions emerged from measured failures: a \emph{noise-aware
+trigger floor} (a dip must exceed a floor that is itself a function of the
+link's measured fluctuation, so a quiet link triggers on less than a noisy
+one), a \emph{sustained-trigger gate} (the trigger must persist for a minimum
+number of samples, removing isolated single-sample glitches), and a
+\emph{stable-level policy} described below. Fig.~\ref{fig:method} shows the
+functional decomposition and the artefacts each stage emits.
+
+\textbf{C. Features.} For every detected event on every link, the engine
+computes dip \emph{depth} in dB, \emph{duration} in ms, \emph{texture} (the
+jitter ratio of the in-event series, distinguishing the smooth block of a
+vehicle from the wobbling shape of a pedestrian), \emph{variance} of the event
+series, \emph{prominence} (depth relative to competing peaks in the window), and
+\emph{coherence} (the number of links that register the event inside a common
+interval --- the multi-link agreement that later becomes the mesh primitive).
+The feature space shows measurable separation: pedestrians produce 5--12~dB
+dips with jittery texture, vehicles 15--26~dB with smooth, long blockages, and
+confusion concentrates in the central 4--13~dB band.
+
+\textbf{D. Multivariate multi-band fusion.} \texttt{EntityClassifier} applies a
+learned weight vector (shipped version v1.1) over the features of each band
+separately and fuses the bands at the crossing level. BLE is the fast, dense
+human signature --- it samples closer to the body and more frequently; Wi-Fi
+5~GHz contributes the strongest per-link attenuation ($A_0 = 11.5$ dB at
+reference range) over longer links; and Wi-Fi 2.4~GHz contributes coverage at
+intermediate distances with the lowest fluctuation floor. The fusion is
+deliberately asymmetric: BLE carries event typing, the 5~GHz band contributes
+25.7\,\% per-crossing accuracy and the 2.4~GHz band 16.1\,\%, yet the Wi-Fi
+bands extend detection to 58--68~m link legs that BLE alone cannot reach. The
+fused output is an entity type (pedestrian/vehicle) with a confidence and an
+event record.
+
+\textbf{E. dBm-based ranging and the quality ladder.} Ranging inverts the
+log-distance model, but does so with an explicit honesty contract. Quantised
+signal levels form a quality ladder from strong links ($-20$~dBm) down to the
+$-90$~dBm noise floor~\cite{ramirez2021,milano2024,bai2020}. Estimation is gated
+at $-75$~dBm: below this, the inverse function is so ill-conditioned that an
+unconstrained point estimate can be off by 14--23~m, and the system therefore
+refuses a point and publishes a radial band $f \in [0.15, 0.92]$ of the raw
+distance instead. Links at or below $-90$~dBm are excluded from range and
+accuracy mathematics entirely and retained only for multi-link agreement.
+
+\textbf{F. Scan-epoch change detection.} Rather than comparing successive
+samples, the engine treats the field as two timed snapshots on a $\approx$10~s
+moving-object time scale. Each epoch stores a timed record (timestamp, place,
+geo, per-link dBm table), the engine resets its baselines and ring windows and
+rescans, and the difference between epochs is computed from \emph{stable levels}
+--- the median of the last 20 samples --- or a transient dip of $\geq 3$~dB. The
+stable-level rule is deliberate: single-sample comparisons have $\approx$1~dB
+standard deviation and produced a 25--62\,\% false-positive rate in the epoch
+experiment, whereas the 20-sample median collapses the fluctuation before any
+comparison is made.
+
+\textbf{G. Two-node transit counter.} Two phones form a barrier across a
+passage or road using a Classic Bluetooth RFCOMM link and a BLE L2CAP link. The
+counter uses a hybrid link-presence/loss classifier: a link drop and a link
+appearance are both treated as evidence, and the fused decision types the entity
+between the two nodes. This realises the barrier-coverage geometry on commodity
+Bluetooth, without synchronised nodes.
+
+\textbf{H. Mesh agreement and gamification.} Nearby Ambient Sense instances
+exchange crossing records. A crossing is published only when it is confirmed by
+a threshold number of nodes, and rays that disagree with the majority are
+down-weighted. The mesh mean thereby becomes the fused estimate, and a
+reliability bonus is granted to the devices whose measurements lie nearest that
+mean. A gamification layer computes an \emph{explicit estimated accuracy},
+rewards participation (points per crossing), and awards a fusion multiplier when
+a crossing is confirmed by several nodes. Because both the reward and the
+estimate depend on the mesh mean, trustworthiness becomes an engineering
+target, not an assumption. Fig.~\ref{fig:arch} shows the layered architecture.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_02_layers.jpg}
+  \caption{Layered system architecture of Ambient Sense, from unmodified radio
+  hardware through per-link DSP and inference to the application and
+  gamification layer.}
+  \label{fig:arch}
+\end{figure}
+
+\textbf{Privacy and data-bearing boundary.} No camera or microphone is used;
+beacon identifiers (MAC, SSID) are not persisted; per-link dBm tables remain on
+device; only aggregate crossing records leave the handset, and only when a mesh
+exists. The observer is device-free throughout.
+
+\textbf{Deployment.} Fig.~\ref{fig:sense}--Fig.~\ref{fig:club} render the
+deployed build. The \emph{Sense} tab (Fig.~\ref{fig:sense}) is the live
+instrument: it reports 33 passive links across the three bands,
+people/vehicle/disturbance counters, the live feature readout (moving variance,
+jitter, classifier confidence) and the attenuation envelope with markers at
+recent crossings. The \emph{Scans} tab (Fig.~\ref{fig:scans}) shows the stored
+epoch --- window, place and geo, link table, the number of links that moved
+$\geq 3$~dB and the resulting field verdict. The \emph{Mesh}
+(Fig.~\ref{fig:mesh}), \emph{Transit} (Fig.~\ref{fig:transit}) and \emph{Club}
+(Fig.~\ref{fig:club}) tabs expose mesh agreement, the two-node barrier counter,
+and the gamification scoring and session history, respectively.
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_03_sense.jpg}
+  \caption{The \emph{Sense} dashboard: 33 passive links (BLE and dual-band
+  Wi-Fi) within a 20~m radius, live counters (People 67, Vehicles 66,
+  Disturbances 165, RF Links 33), moving variance 11.45~dB$^2$, jitter
+  1.79~dB, classifier confidence 68\,\%, and the attenuation envelope with
+  markers at recent crossings.}
+  \label{fig:sense}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_04_scans.jpg}
+  \caption{The \emph{Scans} tab: a stored epoch (window 19:56:03--19:56:18~s,
+  place ``My place'', geo 40.3075, 21.7906, 33 links, with 5 links moved
+  $\geq 3$~dB, max 14.0~dB) and the verdict ``field CHANGED since previous
+  scan'' plus the 120-scan history.}
+  \label{fig:scans}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_05_mesh.jpg}
+  \caption{The \emph{Mesh} tab: 2--5 cooperating nodes confirm each other's
+  crossings; the effective radius extends from 4--12~m (single phone) toward
+  20--40~m, with a reliability bonus for devices nearest the fused estimate.}
+  \label{fig:mesh}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_06_transit.jpg}
+  \caption{The \emph{Transit} tab: a two-node barrier over Classic Bluetooth
+  RFCOMM and BLE L2CAP; per-link presence and loss are fused so both a drop and
+  an appearance are evidence, and detection is reported at each separation.}
+  \label{fig:transit}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=8.7cm]{figures/fig_modern_07_club.jpg}
+  \caption{The \emph{Club} tab: mesh contribution (nodes in your mesh, fused
+  accuracy, crowd level), the scoring rule (people +10 XP, vehicles +14 XP,
+  disturbances +2 XP, +15 XP and a $\times 2$ fusion bonus per mesh-confirmed
+  crossing), and the session history.}
+  \label{fig:club}
+\end{figure}
+
+%---------------------------------------------------------------------------
+% III. EVALUATION
+%---------------------------------------------------------------------------
+\section{Evaluation}
+
+Seven quantities are measured, each against injected ground truth: (A) per-crossing sensing accuracy and detection versus distance and radius preset; (B) scan-epoch movement detection, changed-link counts and their false-positive rate; (C) ranging coverage and median absolute range error for the gated and ungated estimators; (D) mesh confirmation and false-confirmation rates; (E) transit-counter detection and entity typing versus phone separation; (F) per-band and fused typing accuracy; and (G) the displayed gamified accuracy estimate validated against realized accuracy.
+
+
+All metrics are extracted from a unified model-based Monte Carlo harness ($1{,}512$ operational scenes; $160$ empty control scenes). The testbed synthesizes realistic radioscape dynamics, combining log-distance path loss, log-normal scintillation, and Gaussian-profile shadow fading governed by Fresnel-efficiency decay:
+\begin{equation}
+P_{\mathrm{rx}}(d) = P_0 - 10n \log_{10}\left(\frac{d}{d_0}\right) - A_0 \exp\left(-\frac{\Delta x^2}{2\sigma^2}\right) \eta_{\mathrm{Fresnel}} + X_\sigma
+\label{eq:pathloss}
+\end{equation}
+Candidate crossings inject explicit entity parameters, including entity class (pedestrians with lateral profile $\sigma = 0.35$\,m; vehicles with $\sigma = 1.15$\,m, maximum occlusion cap $34$\,dB, and $5.5$\,Hz flutter), trajectory vectors, and closest-approach distances ($0.5$--$20$\,m) across varying transmitter geometries (near $10$\,m, far $55$\,m, and mixed access-point baselines with $33$ typical links spanning $12$--$68$\,m legs).
+
+Ground truth is known exactly, which is what makes accuracy, detection, error, and false-positive rates measurable rather than assumed, and empty/control scenes are generated in parallel so the safety quantities (false changes, false confirmations) are measured with their denominators. The environment exists to calibrate the code in a fast-paced test setting before evaluation under real conditions: it runs in minutes with fixed seeds, so every candidate change — a preset, a gate, a weight vector, an epoch rule, a detector fix — is A/B tested on complete scenes before any physical run, and accepted or rejected on whole-scene evidence. Each reported number is a summary over the resulting distribution of scenes (per-cell n reported, zero counts with denominators and rule-of-three upper bounds), and the same distributions are what the app shows the user as radius presets, range bands and the accuracy list.
+\subsection{Sensing Accuracy and Multi-Band Fusion}
+Single-device BLE detection yields $100\,\%$ sensitivity at $2$\,m, drops to $\approx 50\,\%$ at $14$--$16$\,m, and falls below $15\,\%$ beyond $20$\,m; auxiliary Wi-Fi bands extend physical leg coverage to $58$--$68$\,m (Table~\ref{tab:bands}).
+
+\begin{table}[htb!]
+  \centering
+  \caption{Per-Band Physical Constants and Measured Per-Crossing Accuracy.}
+  \label{tab:bands}
+  \footnotesize
+  \begin{tabular}{@{}lccccr@{}}
+    \toprule
+    Carrier Band & $n$ & $R_{1\,\mathrm{m}}$ & $A_0$ & Per-Crossing Accuracy & Max Leg \\
+    \midrule
+    BLE ($2.4$\,GHz)   & $2.4$ & $-42$\,dBm & $7.2$\,dB  & \textbf{57.7\,\%} & $24$\,m \\
+    Wi-Fi $2.4$\,GHz   & $2.6$ & $-38$\,dBm & $9.1$\,dB  & $16.1\,\%$        & $58$\,m \\
+    Wi-Fi $5$\,GHz     & $2.9$ & $-35$\,dBm & $11.5$\,dB & $25.7\,\%$        & $68$\,m \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=0.87\linewidth]{Accuracy-Detection.png}
+  \caption{BLE per-crossing accuracy/detection (\%) versus crossing distance and radius preset (occupied scenes; $N = 13$--$14$ per cell).}
+  \label{fig:accuracy}
+\end{figure}
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=0.87\linewidth]{Eval2.png}
+  \caption{Human crossing detection probability and signal attenuation across distance and radio bands.}
+  \label{fig:eval2}
+\end{figure}
+
+Per-crossing accuracy across radius presets is detailed in Fig.~\ref{fig:accuracy}. The $10$\,m radius preset serves as the recommended baseline for standalone smartphone operation: narrow presets maximize near-field trigger sensitivity at the expense of field truncation, whereas expansive presets elevate the adaptive trigger threshold to absorb path scintillation along longer baselines, blunting sensitivity. Across $1{,}512$ Monte Carlo runs, the fused classifier achieves correct typing on BLE in $57.7\,\%$ of cases, outperforming standalone Wi-Fi $5$\,GHz ($25.7\,\%$) and Wi-Fi $2.4$\,GHz ($16.1\,\%$). Linearly averaging all three bands degrades BLE performance down to $31.0\,\%$, leading to its explicit rejection.
+
+System-level performance across all bands and presets shows pedestrians correctly typed in $34.9\,\%$ of occupied scenes and vehicles in $29.6\,\%$, while unperturbed control scenes remain quiescent in $87.3\,\%$. Observed median attenuation dips (Fig.~\ref{fig:eval2}, second panel) validate the physical mechanics: shadowing decays with closest approach via Fresnel efficiency until intersecting the adaptive threshold floor. Thus, single-device mobile sensing reliably identifies crossing entities up to $\approx 12$\,m and detects presence up to $\approx 16$\,m; extended carrier links deliver peripheral spatial tripwires rather than fine-grained position estimates.
+
+Reporting accuracy across discrete radii avoids the misleading bias of global aggregation. BLE entity typing decays from $92\,\%$ at $2$\,m to $47\,\%$ at $20$\,m and $6\,\%$ at $68$\,m. Beyond $20$--$40$\,m, link-axial Fisher information collapses~\cite{li2024}; the runtime engine appropriately reports spatial distance bands rather than singular coordinates, aligning with physical channel limitations.
+
+\subsection{Scan Epochs and Ranging Estimator Gating}
+Inter-epoch link analysis tracks RSSI fluctuations between consecutive observation windows. Under baseline conditions, candidate crossings yield detection rates of $100\,\%$, $88\,\%$, $81\,\%$, $75\,\%$, $62\,\%$, $12\,\%$, $44\,\%$, and $25\,\%$ at true distances of $2$, $4$, $6$, $8$, $12$, $16$, $20$, and $22$\,m, respectively (Table~\ref{tab:epoch}). Concurrently, the average number of perturbed links transitions from $5.0$ at $2$\,m to $0.2$ at $22$\,m.
+
+\begin{table}[htb!]
+  \centering
+  \caption{Movement Detection and False-Positive Rates for the Scan Epoch Rule.}
+  \label{tab:epoch}
+  \footnotesize
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Distance & Movement Detected & Naive FPR & Shipped Rule FPR \\
+    \midrule
+    $2$\,m  & $100\,\%$ & $25\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $4$\,m  & $88\,\%$  & $34\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $6$\,m  & $81\,\%$  & $41\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $8$\,m  & $75\,\%$  & $48\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $12$\,m & $62\,\%$  & $55\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $16$\,m & $12\,\%$  & $58\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $20$\,m & $44\,\%$  & $62\,\%$ & $\mathbf{0.0\,\%}$ \\
+    $22$\,m & $25\,\%$  & $65\,\%$ & $\mathbf{0.0\,\%}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The decision rule proves critical for false-alarm suppression: while a naive sample-delta prototype generated $25$--$62\,\%$ false-positive alerts under quiet field conditions, replacing it with a $20$-sample median stable baseline comparison drove false positives to exactly $0.0\,\%$ across all evaluated distances ($0$ false triggers over $56$ control epochs; Rule-of-Three $95\,\%$ confidence upper bound: $5.36\,\%$).
+
+\begin{table}[htb!]
+  \centering
+  \caption{\textsc{Range Estimator (BLE, Per Crossing): Gated ($\ge -75$\,dBm) Versus Ungated.}}
+  \label{tab:range_estimator}
+  \footnotesize
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    \textbf{AP Layout} & \textbf{Distance} & \textbf{Gated Cov. (\%)} & \textbf{Gated Med. $|\mathrm{err}|$ (m)} & \textbf{Ungated Cov. (\%)} & \textbf{Ungated Med. $|\mathrm{err}|$ (m)} \\
+    \midrule
+    $10$\,m (Near) & $2$\,m  & $100\,\%$ & $2.74$  & $100\,\%$ & $2.74$  \\
+    $10$\,m (Near) & $6$\,m  & $83\,\%$  & $1.26$  & $83\,\%$  & $1.26$  \\
+    $10$\,m (Near) & $12$\,m & $67\,\%$  & $7.17$  & $67\,\%$  & $7.17$  \\
+    $10$\,m (Near) & $22$\,m & $50\,\%$  & $17.19$ & $50\,\%$  & $17.19$ \\
+    $55$\,m (Far)  & $2$--$4$\,m & $\mathbf{0\,\%}$ & \textbf{Refused} & $100\,\%$ & $14.00$--$23.00$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+For geometric ranging (Table~\ref{tab:range_estimator}), evaluating $288$ scenes with near ($10$\,m) and far ($55$\,m) access-point configurations demonstrates that direct log-distance inversion creates artificial ranging offsets of $14$--$23$\,m for true crossings at $2$--$4$\,m. On proximate links ($10$\,m baselines; $\approx -65$\,dBm baseline RSSI), the gated estimator restricts median absolute error to $0.67$--$3.20$\,m for paths up to $8$\,m, scaling to $11.20$\,m at $16$\,m and $17.19$\,m at $22$\,m. Applying the $-75$\,dBm gate alongside the valid attenuation interval $f \in [0.15, 0.92]$ drops far-link coverage to $0\,\%$, actively refusing unreliable readings and excluding channels near the $-90$\,dBm noise floor.
+
+\subsection{Cooperative Mesh and Two-Node Transit Counting}
+Spatial distribution over cooperating receiver nodes substantially expands operational sensing coverage while maintaining strict safety guarantees (Fig.~\ref{fig:transit_mesh}).
+
+\begin{figure}[htb!]
+  \centering
+  \includegraphics[width=0.87\linewidth]{figures/fig_modern_06_transit.jpg}
+  \caption{Two-node transit detection accuracy across separations and multi-node cooperative mesh confirmation scaling.}
+  \label{fig:transit_mesh}
+\end{figure}
+
+Confirmation rates scale directly with receiver density, an effect most prominent at long radii: at $40$\,m, confirmation scales from $20\,\%$ with a single device to $50\,\%$ across five cooperating nodes; at $5$\,m, rates improve from $20\,\%$ to $100\,\%$ ($N = 10$ per cell). Non-monotonic intermediate steps (e.g., $70\,\% \to 40\,\%$ at $10$\,m) reflect the overhead of multi-node consensus, where candidate events must align within $\pm 5$\,s in identical classification buckets. In return, the voting logic completely eliminates false confirmations across all $160$ evaluated empty scenes ($0/160$; Rule-of-Three $95\,\%$ upper bound: $1.88\,\%$). Distributed coherence down-weights discordant link rays, extending effective detection from $4$--$12$\,m toward $20$--$40$\,m.
+
+For cross-boundary monitoring, the two-node transit counter leverages dual Bluetooth Classic RFCOMM and BLE L2CAP links. Evaluated independently, the BLE channel detects and types $100\,\%$ of crossings at $3$--$10$\,m separations ($94\,\%$ at $15$\,m), while the RFCOMM loss mechanism delivers $50$--$56\,\%$. The hybrid classifier sustains $100\,\%$ detection and typing across all separations up to $15$\,m road baselines, decaying gracefully to $61\,\%$ at $25$\,m while holding unattributed perturbations below the trigger threshold.
+
+\subsection{Gamified Accuracy and Pipeline Ablation Record}
+The client gamification layer computes real-time confidence scores and structures participant rewards via an explicit XP progression: base crossing XP is augmented by a $2\times$ multi-band fusion bonus, $+15$\,XP for mesh-confirmed events, and a $1.25\times$ spatial consistency multiplier for nodes closest to the spatial consensus centroid. Because reward scheduling mirrors the operational likelihood distribution, incentive structures align with empirical measurement fidelity.
+
+System architecture parameters were validated through complete-scene A/B testing rather than isolated row-level optimization:
+\begin{itemize}
+    \item \textbf{Numerical Optimizers:} Automated weight optimizers marginally boosted row-level $F_1$ scores ($0.173 \to 0.179$), yet degraded under full-scene simulation. An unconstrained optimizer converged to a degenerate state ($0\,\%$ human recall), while a constrained alternative reached $45.6\,\%$ scene accuracy, underperforming the shipped production heuristic ($46.7\,\%$).
+    \item \textbf{Ablation of Rejected Strategies:} A/B testing exposed and eliminated several individually promising techniques: uniform-weight multi-band averaging (diluted BLE accuracy to $31.0\,\%$), noise-floor range extrapolation ($14$--$23$\,m phantom offsets), and naive sample-delta epoch comparison ($25$--$62\,\%$ false-positive rates).
+\end{itemize}
+
+\subsection{Limitations and untested conditions}
+All results are model-based within a simulated test environment, meaning absolute metrics require empirical on-device re-validation; real-world accuracy is expected to degrade slightly due to richer physical multipath propagation. Within the modeled envelope, the system achieved identification up to approximately $12\text{ m}$ and detection to $\approx 16\text{ m}$, resolving into position bands rather than discrete points beyond $\approx 8\text{ m}$. Over this same $8\text{ m}$ span, epoch difference detection operated with zero false positives, while the mesh-extended configuration yielded a $20\text{--}40\text{ m}$ radius with zero false confirmations.
+
+Several operational conditions remain untested and define future experiments on the same evaluation harness, pending on-device validation or per-environment refitting of $n$, $R_{1\text{m}}$, $A_0$, and $\sigma$. Indoor priorities include residential setups (2--5 links), office floors, corridor transitions, stairwell NLOS, RF-hostile settings, and high-density transit hubs with simultaneous crossings. Outdoor evaluations will cover urban street canyons, adverse weather (rain, wet ground, night), sparse park layouts ($30\text{--}50\text{ m}$ anchors), high-multipath parking lots, rural roads, and saturated events. Finally, cross-cutting investigations must address practical constraints such as device placement (hand, pocket, bag), hardware heterogeneity, battery-limited duty cycling, co-channel interference, and resilience against adversarial beacons and spoofed reports.
+
+%---------------------------------------------------------------------------
+% IV. CONCLUSIONS
+%---------------------------------------------------------------------------
+\section{Conclusions and Future Work}
+Ambient Sense demonstrates that a commodity phone can perform multi-band passive
+sensing end to end: fuse BLE and dual-band Wi-Fi features into entity typing,
+convert measured dBm into a stated range with an explicit gate, detect change
+between two instants of the field without inventing movement, count transit
+across a two-node Bluetooth barrier, and accrue accuracy by agreeing with
+neighbours --- while a gamification layer keeps voluntary contributors engaged.
+Just as importantly, it reports where the physics withdraws its support: 6\,\%
+typing accuracy at 68~m, 94\,\% rather than 100\,\% detection at 15~m, and a
+noise floor below which ranging is not merely uncertain but refused.
+
+\textbf{Use cases.} Because the sensing hardware is the handset, the marginal
+cost of a new measurement point is approximately zero, and because the observer
+carries no camera, the privacy argument is structural. The system supports
+ambient-assisted living (presence and crossing counts without cameras or worn
+devices), occupancy and flow analytics in workplaces and corridors, roadside
+traffic studies (two phones become a typed barrier counter), and coverage
+scouting, in which the RF field itself is the subject of the change-detection
+epochs.
+
+\textbf{Gamification and incentive extension.} The gamification layer will be
+extended from a point-and-badge system to a quality-weighted, reputation-aware
+reward engine: team meshes, seasonal ladders and accuracy-weighted seasons in
+which the reliability bonus becomes a published, auditable score. The incentive
+design is deliberately aligned with the measurement --- rewarding the devices
+nearest the fused estimate is equivalent to rewarding honesty --- and draws on
+established quality-aware and reputation-based mobile-crowdsensing
+mechanisms~\cite{zhang2022,wang2018}.
+
+\textbf{Summary.} The central contribution is a method of validation: every
+constant that ships was produced by executing the harness and falsifying the
+losers, so the paper can state, with equal precision, both the configuration
+that shipped and the configuration the evidence threw away. Ambient Sense is a
+working answer to a hard question --- what can a single, unmodified smartphone
+held by an ordinary user actually deliver in the field --- and the answer
+includes, as a first-class result, an explicit account of where it cannot.
+
+%---------------------------------------------------------------------------
+% REFERENCES
+%---------------------------------------------------------------------------
+\begin{thebibliography}{21}
+
+\bibitem{wilson2010} J.~Wilson and N.~Patwari, ``Radio tomographic imaging with
+wireless networks,'' \emph{IEEE Trans.\ Mobile Comput.}, vol.~9, no.~5,
+pp.~621--632, May 2010, doi: 10.1109/TMC.2010.8.
+
+\bibitem{januszkiewicz2018} {\L}.\,Januszkiewicz, ``Analysis of human body
+shadowing effect on wireless sensor networks operating in the 2.4~GHz band,''
+\emph{Sensors}, vol.~18, no.~10, art.~3412, Oct. 2018, doi:
+10.3390/s18103412.
+
+\bibitem{alippi2016} C.~Alippi, M.~Bocca, G.~Boracchi, N.~Patwari, and
+M.~Roveri, ``RTI goes wild: Radio tomographic imaging for outdoor people
+detection and localization,'' \emph{IEEE Trans.\ Mobile Comput.}, vol.~15,
+no.~10, pp.~2585--2598, Oct. 2016, doi: 10.1109/TMC.2015.2504964.
+
+\bibitem{li2024} Z.~Li, A.~Dubey, S.~Shen, N.~K.~Kundu, J.~Rao, and R.~Murch,
+``Radio tomographic imaging with reconfigurable intelligent surfaces for
+integrated sensing and communication,'' \emph{IEEE Trans.\ Wireless Commun.},
+vol.~23, no.~11, pp.~15784--15797, Nov. 2024, doi: 10.1109/TWC.2024.3433011.
+
+\bibitem{wu2024} H.~Wu, C.~Cheng, T.~Peng, H.~Zhou, and T.~Chen, ``Combining
+transformer with a latent variable model for radio tomography based robust
+device-free localization,'' \emph{Comput.\ Commun.}, vol.~224, art.~108022,
+Oct. 2024, doi: 10.1016/j.comcom.2024.108022.
+
+\bibitem{cnnrti2025} ``Passive localization based on radio tomography images
+with CNN model utilizing WiFi RSSI,'' \emph{Sci.\ Rep.}, vol.~15, art.~15698,
+2025, doi: 10.1038/s41598-025-99694-2.
+
+\bibitem{wong2024} W.~E.~Wong, A.~H.~Wong, W.~Q.~Peh, and C.~K.~Tan, ``A
+high-dimensional, multi-transceiver channel state information dataset for
+enhanced human activity recognition,'' \emph{Data Brief}, vol.~55,
+art.~110673, Aug. 2024, doi: 10.1016/j.dib.2024.110673.
+
+\bibitem{sanchez2020} D.~S\'anchez-Rodr\'iguez, M.~A.~Quintana-Su\'arez,
+I.~Alonso-Gonz\'alez, C.~Ley-Bosch, and J.~J.~S\'anchez-Medina, ``Fusion of
+channel state information and received signal strength for indoor localization
+using a single access point,'' \emph{Remote Sens.}, vol.~12, no.~12,
+art.~1995, Jun. 2020, doi: 10.3390/rs12121995.
+
+\bibitem{ramirez2021} R.~Ramirez, C.-Y.~Huang, C.-A.~Liao, P.-T.~Lin, H.-W.~Lin,
+and S.-H.~Liang, ``A practice of BLE RSSI measurement for indoor positioning,''
+\emph{Sensors}, vol.~21, no.~15, art.~5181, Jul. 2021, doi: 10.3390/s21155181.
+
+\bibitem{milano2024} F.~Milano, H.~da Rocha, M.~Laracca, L.~Ferrigno,
+A.~Esp\'iritu Santo, J.~Salvado, and V.~Paciello, ``BLE-based indoor
+localization: Analysis of some solutions for performance improvement,''
+\emph{Sensors}, vol.~24, no.~2, art.~376, Jan. 2024, doi: 10.3390/s24020376.
+
+\bibitem{bai2020} L.~Bai, F.~Ciravegna, R.~Bond, and M.~Mulvenna, ``A low cost
+indoor positioning system using Bluetooth Low Energy,'' \emph{IEEE Access},
+vol.~8, pp.~136858--136871, 2020, doi: 10.1109/ACCESS.2020.3012342.
+
+\bibitem{khan2023} D.~Khan and I.~W.-H.~Ho, ``CrossCount: Efficient device-free
+crowd counting by leveraging transfer learning,'' \emph{IEEE Internet Things
+J.}, vol.~10, no.~5, pp.~4049--4058, Mar. 2023.
+
+\bibitem{zhou2020} R.~Zhou, Z.~Gong, X.~Lu, and Y.~Fu, ``WiFlowCount:
+Device-free people flow counting by exploiting Doppler effect in commodity
+WiFi,'' \emph{IEEE Syst.~J.}, vol.~14, no.~4, pp.~4919--4930, Dec. 2020.
+
+\bibitem{dmip2023} ``Non-intrusive people counting and identification
+simultaneously with commodity WiFi devices,'' in \emph{Proc.\ 6th Int.\ Conf.\
+Digital Medicine and Image Processing (DMIP '23)}, 2023, pp.~62--68, doi:
+10.1145/3637684.3637694.
+
+\bibitem{zhang2022} J.~Zhang, X.~Li, Z.~Shi, \emph{et al.}, ``A reputation-based
+and privacy-preserving incentive scheme for mobile crowd sensing: A deep
+reinforcement learning approach,'' \emph{Wirel.\ Netw.}, 2023, doi:
+10.1007/s11276-022-03111-9.
+
+\bibitem{wang2018} J.~Wang, M.~Li, Y.~He, H.~Li, K.~Xiao, and C.~Wang, ``A
+blockchain based privacy-preserving incentive mechanism in crowdsensing
+applications,'' \emph{IEEE Access}, vol.~6, pp.~17545--17556, 2018, doi:
+10.1109/ACCESS.2018.2815365.
+
+\bibitem{casar2022} M.~C\"asar, T.~Pawelke, J.~Steffan, and G.~Terhorst, ``A
+survey on Bluetooth Low Energy security and privacy,'' \emph{Comput.\ Netw.},
+vol.~202, art.~108712, Jan. 2022, doi: 10.1016/j.comnet.2021.108712.
+
+\bibitem{antonioli2020} D.~Antonioli, N.~O.~Tippenhauer, and K.~B.~Rasmussen,
+``Key negotiation downgrade attacks on Bluetooth and Bluetooth Low Energy,''
+\emph{ACM Trans.\ Priv.\ Secur.}, vol.~23, no.~3, art.~14, Jul. 2020, doi:
+10.1145/3394497.
+
+\bibitem{cai2024} H.~Cai, ``Securing billion Bluetooth devices leveraging
+learning-based techniques,'' in \emph{Proc.\ AAAI Conf.\ Artif.\ Intell.\
+(AAAI)}, vol.~38, no.~21, pp.~23731--23732, 2024, doi:
+10.1609/aaai.v38i21.30544.
+
+\bibitem{mobisys2024} ``Poster: Hybrid detection mechanism for spoofing
+attacks in Bluetooth Low Energy networks,'' in \emph{Proc.\ 22nd Annu.\ Int.\
+Conf.\ Mobile Syst., Appl., Services (MobiSys '24)}, 2024, pp.~710--711, doi:
+10.1145/3643832.3661434.
+
+\bibitem{hensler2019} C.~Hensler and P.~Tague, ``DEMO: Using Bluetooth Low Energy
+spoofing to dispute device details,'' in \emph{Proc.\ ACM Conf.\ Security
+Privacy Wireless Mobile Netw.\ (WiSec '19)}, Miami, FL, USA, 2019, pp.~341--343,
+doi: 10.1145/3317549.3326321.
+
+\end{thebibliography}
+
+\end{document}
